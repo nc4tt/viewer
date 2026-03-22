@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Universal File Viewer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Styrene+A:wght@400;500&family=Tiempos+Text:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Copernicus:ital,wght@0,400;0,600;1,400&family=Söhne:wght@300;400;500&display=swap');
+/* Fallback stack matching Claude's actual fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Claude/Anthropic palette */
+  --bg:          #F5F0E8;      /* warm parchment */
+  --bg-alt:      #EDE8DF;      /* slightly darker warm */
+  --surface:     #FDFAF5;      /* near-white warm */
+  --surface-2:   #F0EBE1;      /* card surface */
+  --border:      #D9D3C7;      /* warm gray border */
+  --border-light:#E8E3D9;
+  --accent:      #D97757;      /* Claude's coral/terracotta */
+  --accent-warm: #C86B3E;      /* deeper coral */
+  --accent-glow: rgba(217,119,87,.15);
+  --text:        #1A1714;      /* near-black warm */
+  --text-2:      #4A4540;      /* medium warm gray */
+  --text-3:      #8A837A;      /* muted warm gray */
+  --text-inv:    #FDFAF5;
+  --node-root:   #D97757;
+  --node-l1:     #1A1714;
+  --node-l2:     #4A4540;
+  --node-l3:     #8A837A;
+  --shadow-sm:   0 1px 3px rgba(26,23,20,.08), 0 1px 2px rgba(26,23,20,.06);
+  --shadow-md:   0 4px 16px rgba(26,23,20,.10), 0 2px 6px rgba(26,23,20,.07);
+  --shadow-lg:   0 12px 40px rgba(26,23,20,.14), 0 4px 12px rgba(26,23,20,.08);
+  --radius:      10px;
+  --radius-sm:   6px;
+  --radius-lg:   16px;
+  --font-sans:   'Source Sans 3', 'Helvetica Neue', sans-serif;
+  --font-serif:  'Playfair Display', Georgia, serif;
+  --font-mono:   'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Claude-style asterisk / flower logo */
+.logo-mark svg { width: 100%; height: 100%; }
+
+.logo-text {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.logo-text span {
+  color: var(--text-3);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s ease;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--text-inv);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.btn-primary:hover {
+  background: var(--accent-warm);
+  border-color: var(--accent-warm);
+  color: var(--text-inv);
+  box-shadow: 0 2px 8px rgba(217,119,87,.3);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-3);
+}
+.btn-ghost:hover {
+  background: var(--surface-2);
+  border-color: var(--border-light);
+  color: var(--text-2);
+  box-shadow: none;
+}
+
+.btn-icon {
+  padding: 7px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Drop Zone ────────────────────────────────────────────────────────────── */
+#drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  padding: 40px 24px;
+}
+
+/* Warm dot-grid background */
+#drop-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: .5;
+  pointer-events: none;
+}
+
+#drop-zone::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 55% 45% at 50% 50%,
+    rgba(253,250,245,.95) 0%,
+    rgba(245,240,232,.7) 50%,
+    transparent 100%);
+  pointer-events: none;
+}
+
+.drop-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+  transition: transform .2s ease;
+}
+
+#drop-zone.dragover .drop-inner { transform: scale(1.01); }
+#drop-zone.dragover { background: rgba(217,119,87,.03); }
+
+.drop-logo-large {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  opacity: .85;
+  transition: opacity .2s, transform .2s;
+}
+#drop-zone:hover .drop-logo-large, #drop-zone.dragover .drop-logo-large {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.drop-title {
+  font-family: var(--font-serif);
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+
+.drop-sub {
+  font-size: .85rem;
+  color: var(--text-3);
+  margin-top: -10px;
+  font-weight: 400;
+}
+
+.drop-btn-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.format-section {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  justify-content: center;
+  max-width: 680px;
+}
+
+.fmt-group { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.fmt-label { font-size: .67rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .1em; }
+.fmt-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: .7rem;
+  font-weight: 500;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  letter-spacing: .02em;
+}
+.chip.c-xmind { background: rgba(217,119,87,.1); border-color: rgba(217,119,87,.3); color: var(--accent); }
+.chip.c-img   { background: rgba(59,130,246,.07); border-color: rgba(59,130,246,.25); color: #3B7BD9; }
+.chip.c-vid   { background: rgba(168,85,247,.07); border-color: rgba(168,85,247,.25); color: #8B5CF6; }
+.chip.c-doc   { background: rgba(20,184,166,.07); border-color: rgba(20,184,166,.25); color: #0D9488; }
+.chip.c-xls   { background: rgba(34,197,94,.07);  border-color: rgba(34,197,94,.25);  color: #16A34A; }
+.chip.c-ppt   { background: rgba(249,115,22,.07); border-color: rgba(249,115,22,.25); color: #EA6A0B; }
+
+#file-input { display: none; }
+
+/* ── Viewer shell ─────────────────────────────────────────────────────────── */
+#viewer { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: 50px;
+}
+
+.toolbar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+
+.file-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: .8rem;
+  color: var(--text-2);
+  margin-right: auto;
+  max-width: 300px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.file-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.file-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.zoom-val {
+  font-size: .78rem;
+  color: var(--text-3);
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.toolbar-extras { display: none; align-items: center; gap: 6px; }
+.toolbar-extras.active { display: flex; }
+
+/* Sheet tabs */
+.sheet-tabs {
+  display: none;
+  align-items: center;
+  gap: 0;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+.sheet-tabs::-webkit-scrollbar { display: none; }
+.sheet-tab {
+  padding: 10px 16px;
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+.sheet-tab:hover { color: var(--text-2); }
+.sheet-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Content area */
+#content-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+
+/* Error */
+#error-msg {
+  display: none; padding: 12px 18px; margin: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(217,119,87,.4);
+  background: rgba(217,119,87,.08);
+  color: var(--accent-warm);
+  font-size: .82rem;
+  flex-shrink: 0;
+}
+
+/* ── XMind Canvas ─────────────────────────────────────────────────────────── */
+#canvas-wrap {
+  display: none; flex: 1; overflow: hidden; position: relative;
+  cursor: grab;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+#canvas-wrap:active, #canvas-wrap.panning { cursor: grabbing; }
+#mind-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+.node {
+  position: absolute; border-radius: var(--radius-sm);
+  padding: 9px 16px; font-size: .82rem; line-height: 1.45;
+  cursor: pointer; max-width: 240px; white-space: normal;
+  word-break: break-word; user-select: none;
+  font-family: var(--font-sans);
+  transition: box-shadow .15s, transform .15s;
+}
+.node:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+
+.node-root {
+  background: var(--accent); color: var(--text-inv);
+  font-weight: 600; font-size: .9rem; padding: 12px 20px;
+  border-radius: var(--radius); font-family: var(--font-serif);
+  box-shadow: var(--shadow-md), 0 0 0 3px var(--accent-glow);
+}
+.node-l1 {
+  background: var(--surface); color: var(--text);
+  border: 1.5px solid var(--border); font-weight: 500;
+  box-shadow: var(--shadow-sm);
+}
+.node-l2 {
+  background: var(--surface); color: var(--text-2);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+.node-l3 {
+  background: transparent; color: var(--text-3);
+  border: 1px solid var(--border-light); font-size: .76rem;
+}
+
+#edge-layer { position: absolute; top:0; left:0; pointer-events:none; overflow:visible; }
+
+.legend {
+  position: absolute; top: 16px; left: 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 7px; z-index: 10;
+  box-shadow: var(--shadow-sm);
+  font-size: .72rem; color: var(--text-3);
+}
+.legend-title { font-weight: 600; color: var(--text-2); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 2px; }
+.legend-row { display: flex; align-items: center; gap: 8px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+/* Info panel */
+#info-panel {
+  position: absolute; bottom: 20px; right: 20px; width: 280px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px;
+  display: none; z-index: 50; box-shadow: var(--shadow-lg);
+}
+#info-panel.open { display: block; }
+.info-kicker { font-size:.67rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px; }
+.info-title { font-family:var(--font-serif); font-size:1.05rem; color:var(--text); margin-bottom:8px; word-break:break-word; line-height:1.3; }
+.info-note { font-size:.8rem; color:var(--text-2); line-height:1.6; word-break:break-word; }
+.info-close { position:absolute; top:14px; right:14px; background:none; border:none; color:var(--text-3); cursor:pointer; font-size:.9rem; padding:2px; border-radius:4px; }
+.info-close:hover { color:var(--text); background: var(--bg-alt); }
+
+/* ── Image ────────────────────────────────────────────────────────────────── */
+#image-wrap {
+  display:none; flex:1; align-items:center; justify-content:center;
+  overflow:auto; padding:24px;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  position:relative;
+}
+#image-wrap img { max-width:100%; max-height:100%; object-fit:contain; border-radius:var(--radius-sm); box-shadow:var(--shadow-lg); transform-origin:center center; transition:transform .15s; display:block; }
+.img-bar { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surface); border:1px solid var(--border); border-radius:100px; padding:6px 16px; font-size:.74rem; color:var(--text-3); white-space:nowrap; pointer-events:none; box-shadow:var(--shadow-sm); font-variant-numeric:tabular-nums; }
+
+/* ── Video ────────────────────────────────────────────────────────────────── */
+#video-wrap { display:none; flex:1; align-items:center; justify-content:center; background:#1A1714; overflow:hidden; }
+#video-wrap video { max-width:100%; max-height:100%; outline:none; }
+
+/* ── PDF ──────────────────────────────────────────────────────────────────── */
+#pdf-wrap { display:none; flex:1; flex-direction:column; overflow:hidden; }
+#pdf-canvas-area { flex:1; overflow-y:auto; display:flex; flex-direction:column; align-items:center; gap:16px; padding:24px; background:#6B6560; }
+#pdf-canvas-area canvas { box-shadow:0 4px 24px rgba(0,0,0,.35); display:block; border-radius:2px; }
+.pdf-lbl { color:rgba(255,255,255,.45); font-size:.7rem; letter-spacing:.06em; margin-top:-8px; font-family:var(--font-mono); }
+
+/* ── Docx ─────────────────────────────────────────────────────────────────── */
+#office-wrap { display:none; flex:1; flex-direction:column; overflow:hidden; background:var(--bg-alt); }
+#docx-render { display:none; flex:1; overflow-y:auto; padding:48px 72px; background:#fff; color:#1a1714; font-family:'Times New Roman',Georgia,serif; font-size:13.5px; line-height:1.75; }
+#docx-render h1,#docx-render h2,#docx-render h3 { font-family:var(--font-serif); margin:1.2em 0 .4em; color:#1a1714; }
+#docx-render p { margin:.4em 0; }
+#docx-render table { border-collapse:collapse; width:100%; margin:.8em 0; }
+#docx-render td,#docx-render th { border:1px solid #ddd; padding:7px 12px; }
+#docx-render th { background:#f8f6f2; font-weight:600; }
+
+/* ── XLSX ─────────────────────────────────────────────────────────────────── */
+#xlsx-wrap { display:none; flex:1; flex-direction:column; overflow:hidden; background:#fff; }
+.xlsx-nav { display:flex; gap:2px; padding:6px 12px; background:var(--surface); border-bottom:1px solid var(--border); overflow-x:auto; flex-shrink:0; }
+.xlsx-tab { padding:5px 14px; border-radius:var(--radius-sm); font-size:.75rem; cursor:pointer; background:transparent; border:1px solid transparent; font-family:var(--font-sans); font-weight:500; color:var(--text-3); transition:all .15s; }
+.xlsx-tab:hover { background:var(--bg-alt); color:var(--text-2); }
+.xlsx-tab.active { background:var(--surface-2); border-color:var(--border); color:var(--text); }
+#xlsx-table-area { flex:1; overflow:auto; }
+#xlsx-table-area table { border-collapse:collapse; font-family:var(--font-mono); font-size:.76rem; white-space:nowrap; }
+#xlsx-table-area th { background:var(--surface); border:1px solid var(--border); padding:5px 14px; text-align:center; font-weight:600; position:sticky; top:0; z-index:2; color:var(--text-2); font-family:var(--font-sans); font-size:.72rem; }
+#xlsx-table-area td { border:1px solid var(--border-light); padding:4px 14px; min-width:80px; max-width:240px; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
+#xlsx-table-area tr:nth-child(even) td { background:#FAFAF8; }
+#xlsx-table-area td.rh { background:var(--surface); font-weight:600; text-align:center; position:sticky; left:0; z-index:1; border-right:1px solid var(--border); color:var(--text-3); font-size:.7rem; font-family:var(--font-sans); }
+
+/* ── PPTX ─────────────────────────────────────────────────────────────────── */
+#pptx-wrap { display:none; flex:1; overflow:hidden; }
+#pptx-sidebar { width:160px; flex-shrink:0; overflow-y:auto; background:var(--surface); border-right:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:8px; }
+.pptx-thumb { border-radius:var(--radius-sm); border:2px solid var(--border); overflow:hidden; cursor:pointer; background:#fff; aspect-ratio:16/9; position:relative; transition:border-color .15s, box-shadow .15s; }
+.pptx-thumb:hover { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-glow); }
+.pptx-thumb.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-glow); }
+.pptx-num { position:absolute; bottom:3px; right:5px; font-size:.6rem; color:#aaa; font-family:var(--font-mono); }
+.pptx-thumb canvas { width:100%; height:100%; display:block; }
+#pptx-main { flex:1; overflow:auto; display:flex; align-items:center; justify-content:center; padding:30px; background:#4A4540; }
+#pptx-main canvas { box-shadow:0 8px 40px rgba(0,0,0,.4); display:block; max-width:100%; }
+
+/* ── Text ─────────────────────────────────────────────────────────────────── */
+#text-wrap { display:none; flex:1; overflow:auto; padding:32px; background:var(--bg); }
+#text-wrap pre { font-family:var(--font-mono); font-size:.8rem; line-height:1.75; color:var(--text); white-space:pre-wrap; word-break:break-word; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--text); color: var(--text-inv);
+  border-radius: 100px; padding: 9px 20px;
+  font-size: .8rem; font-weight: 500;
+  z-index: 300; transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+  opacity: 0; pointer-events: none; white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+}
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-alt); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <!-- Anthropic-style asterisk/sunburst logo -->
+      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(14,14)">
+          <ellipse rx="2.2" ry="7" fill="#D97757" transform="rotate(0)"/>
+          <ellipse rx="2.2" ry="7" fill="#D97757" transform="rotate(30)" opacity=".92"/>
+          <ellipse rx="2.2" ry="7" fill="#D97757" transform="rotate(60)" opacity=".84"/>
+          <ellipse rx="2.2" ry="7" fill="#D97757" transform="rotate(90)" opacity=".76"/>
+          <ellipse rx="2.2" ry="7" fill="#D97757" transform="rotate(120)" opacity=".68"/>
+          <ellipse rx="2.2" ry="7" fill="#D97757" transform="rotate(150)" opacity=".60"/>
+        </g>
+      </svg>
+    </div>
+    <div class="logo-text">Viewer</div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" id="reset-btn" style="display:none" onclick="resetViewer()">✕ Close</button>
+  </div>
+</header>
+
+<!-- Drop Zone -->
+<div id="drop-zone">
+  <div class="drop-inner">
+    <svg class="drop-logo-large" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(28,28)">
+        <ellipse rx="4" ry="13" fill="#D97757" transform="rotate(0)"/>
+        <ellipse rx="4" ry="13" fill="#D97757" transform="rotate(30)" opacity=".9"/>
+        <ellipse rx="4" ry="13" fill="#D97757" transform="rotate(60)" opacity=".8"/>
+        <ellipse rx="4" ry="13" fill="#D97757" transform="rotate(90)" opacity=".7"/>
+        <ellipse rx="4" ry="13" fill="#D97757" transform="rotate(120)" opacity=".6"/>
+        <ellipse rx="4" ry="13" fill="#D97757" transform="rotate(150)" opacity=".5"/>
+      </g>
+    </svg>
+    <div class="drop-title">Drop any file to view</div>
+    <div class="drop-sub">Everything runs locally — your files never leave your browser</div>
+    <div class="drop-btn-row">
+      <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Browse files</button>
+      <span style="font-size:.8rem;color:var(--text-3)">or drag &amp; drop</span>
+    </div>
+    <div class="format-section">
+      <div class="fmt-group">
+        <div class="fmt-label">Mind Map</div>
+        <div class="fmt-chips"><span class="chip c-xmind">.xmind</span></div>
+      </div>
+      <div class="fmt-group">
+        <div class="fmt-label">Images</div>
+        <div class="fmt-chips">
+          <span class="chip c-img">.jpg</span><span class="chip c-img">.png</span><span class="chip c-img">.gif</span>
+          <span class="chip c-img">.webp</span><span class="chip c-img">.svg</span><span class="chip c-img">.bmp</span>
+          <span class="chip c-img">.avif</span><span class="chip c-img">.tiff</span><span class="chip c-img">+more</span>
+        </div>
+      </div>
+      <div class="fmt-group">
+        <div class="fmt-label">Video</div>
+        <div class="fmt-chips">
+          <span class="chip c-vid">.mp4</span><span class="chip c-vid">.webm</span><span class="chip c-vid">.mov</span>
+          <span class="chip c-vid">.mkv</span><span class="chip c-vid">.avi</span><span class="chip c-vid">+more</span>
+        </div>
+      </div>
+      <div class="fmt-group">
+        <div class="fmt-label">Documents</div>
+        <div class="fmt-chips">
+          <span class="chip c-doc">.pdf</span><span class="chip c-doc">.docx</span><span class="chip c-doc">.txt</span>
+          <span class="chip c-doc">.md</span><span class="chip c-doc">.json</span><span class="chip c-doc">+more</span>
+        </div>
+      </div>
+      <div class="fmt-group">
+        <div class="fmt-label">Spreadsheets</div>
+        <div class="fmt-chips">
+          <span class="chip c-xls">.xlsx</span><span class="chip c-xls">.xls</span><span class="chip c-xls">.csv</span>
+        </div>
+      </div>
+      <div class="fmt-group">
+        <div class="fmt-label">Presentations</div>
+        <div class="fmt-chips">
+          <span class="chip c-ppt">.pptx</span><span class="chip c-ppt">.ppt</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="*">
+
+<!-- Viewer -->
+<div id="viewer">
+  <div id="error-msg"></div>
+  <div class="toolbar">
+    <div class="file-badge"><span class="file-dot"></span><span id="file-name">untitled</span></div>
+
+    <div class="toolbar-extras" id="te-xmind">
+      <button class="btn btn-icon" onclick="zoomOut()" title="Zoom out">－</button>
+      <span class="zoom-val" id="xmind-zoom">100%</span>
+      <button class="btn btn-icon" onclick="zoomIn()" title="Zoom in">＋</button>
+      <button class="btn" onclick="fitView()">Fit</button>
+      <div class="toolbar-sep"></div>
+      <button class="btn" onclick="toggleLegend()">Legend</button>
+      <button class="btn btn-primary" onclick="exportSVG()">↓ Export SVG</button>
+    </div>
+
+    <div class="toolbar-extras" id="te-image">
+      <button class="btn btn-icon" onclick="imgZoom(-0.15)">－</button>
+      <span class="zoom-val" id="img-zoom">100%</span>
+      <button class="btn btn-icon" onclick="imgZoom(0.15)">＋</button>
+      <button class="btn" onclick="imgReset()">Fit</button>
+      <button class="btn btn-primary" onclick="downloadCurrent()">↓ Download</button>
+    </div>
+
+    <div class="toolbar-extras" id="te-video">
+      <span style="font-size:.8rem;color:var(--text-3);">Native controls below</span>
+      <button class="btn btn-primary" onclick="downloadCurrent()">↓ Download</button>
+    </div>
+
+    <div class="toolbar-extras" id="te-pdf">
+      <button class="btn btn-icon" onclick="pdfPrev()">‹</button>
+      <span class="zoom-val" id="pdf-pages">1 / 1</span>
+      <button class="btn btn-icon" onclick="pdfNext()">›</button>
+      <div class="toolbar-sep"></div>
+      <button class="btn btn-icon" onclick="pdfZoom(-0.25)">－</button>
+      <span class="zoom-val" id="pdf-scale">100%</span>
+      <button class="btn btn-icon" onclick="pdfZoom(0.25)">＋</button>
+      <button class="btn btn-primary" onclick="downloadCurrent()">↓ Download</button>
+    </div>
+
+    <div class="toolbar-extras" id="te-office">
+      <button class="btn btn-primary" onclick="downloadCurrent()">↓ Download</button>
+    </div>
+
+    <div class="toolbar-extras" id="te-pptx">
+      <button class="btn" onclick="pptxNav(-1)">‹ Prev</button>
+      <span class="zoom-val" id="pptx-pages">1 / 1</span>
+      <button class="btn" onclick="pptxNav(1)">Next ›</button>
+      <button class="btn btn-primary" onclick="downloadCurrent()">↓ Download</button>
+    </div>
+
+    <div class="toolbar-extras" id="te-text">
+      <button class="btn btn-primary" onclick="downloadCurrent()">↓ Download</button>
+    </div>
+  </div>
+
+  <div class="sheet-tabs" id="sheet-tabs"></div>
+
+  <div id="content-area">
+
+    <!-- XMind -->
+    <div id="canvas-wrap">
+      <div id="mind-canvas"><svg id="edge-layer" width="10000" height="10000"></svg></div>
+      <div class="legend" id="legend">
+        <div class="legend-title">Node Levels</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--accent)"></div>Root</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--text);"></div>Level 1</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--text-2)"></div>Level 2</div>
+        <div class="legend-row"><div class="legend-dot" style="background:var(--text-3)"></div>Level 3+</div>
+      </div>
+      <div id="info-panel">
+        <button class="info-close" onclick="closeInfo()">✕</button>
+        <div class="info-kicker">Node</div>
+        <div class="info-title" id="info-title"></div>
+        <div class="info-note" id="info-note"></div>
+      </div>
+    </div>
+
+    <!-- Image -->
+    <div id="image-wrap">
+      <img id="preview-img" src="" alt="">
+      <div class="img-bar" id="img-bar"></div>
+    </div>
+
+    <!-- Video -->
+    <div id="video-wrap"><video id="preview-video" controls></video></div>
+
+    <!-- PDF -->
+    <div id="pdf-wrap"><div id="pdf-canvas-area"></div></div>
+
+    <!-- Docx -->
+    <div id="office-wrap"><div id="docx-render"></div></div>
+
+    <!-- XLSX -->
+    <div id="xlsx-wrap">
+      <div class="xlsx-nav" id="xlsx-nav"></div>
+      <div id="xlsx-table-area"></div>
+    </div>
+
+    <!-- PPTX -->
+    <div id="pptx-wrap" style="display:flex">
+      <div id="pptx-sidebar"></div>
+      <div id="pptx-main"><canvas id="pptx-canvas"></canvas></div>
+    </div>
+
+    <!-- Text -->
+    <div id="text-wrap"><pre id="text-content"></pre></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── Type map ──────────────────────────────────────────────────────────────────
+const TYPE_MAP = {
+  xmind: ['xmind'],
+  image: ['jpg','jpeg','png','gif','webp','svg','bmp','ico','avif','tiff','tif','heic','heif','apng','jfif'],
+  video: ['mp4','webm','ogg','ogv','mov','avi','mkv','flv','m4v','3gp','wmv','ts','m2ts','mts'],
+  pdf:   ['pdf'],
+  docx:  ['docx','doc'],
+  xlsx:  ['xlsx','xls','xlsm','xlsb','ods','csv'],
+  pptx:  ['pptx','ppt'],
+  text:  ['txt','md','markdown','json','xml','html','htm','css','js','ts','jsx','tsx','py','rb','sh','bash','yaml','yml','ini','log','sql','toml','conf','env'],
+};
+function getType(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  for (const [t, exts] of Object.entries(TYPE_MAP)) if (exts.includes(ext)) return t;
+  return 'text';
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let curURL=null, curName='', curBlob=null;
+let scale=1, panX=0, panY=0, isPanning=false, stX=0, stY=0, stPX=0, stPY=0;
+let allSheets=[], nodeEls=[], legendVis=true;
+let imgSc=1;
+let pdfDoc=null, pdfPage=1, pdfSc=1.5;
+let pptxSlides=[], pptxSlide=0;
+
+// ── Drop / open ───────────────────────────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]); });
+fi.addEventListener('change', e => { if (e.target.files[0]) load(e.target.files[0]); });
+
+async function load(file) {
+  curName = file.name;
+  curBlob = file;
+  document.getElementById('file-name').textContent = file.name;
+  if (curURL) URL.revokeObjectURL(curURL);
+  curURL = URL.createObjectURL(file);
+  hideAll(); clearErr(); showViewer();
+  try {
+    const t = getType(file.name);
+    if      (t==='xmind') await loadXMind(file);
+    else if (t==='image') loadImage(file);
+    else if (t==='video') loadVideo();
+    else if (t==='pdf')   await loadPDF(file);
+    else if (t==='docx')  await loadDocx(file);
+    else if (t==='xlsx')  await loadXlsx(file);
+    else if (t==='pptx')  await loadPptx(file);
+    else                  await loadText(file);
+  } catch(e) { showErr('Error loading: ' + e.message); console.error(e); }
+}
+
+// ── Panel helpers ─────────────────────────────────────────────────────────────
+const PANELS = ['canvas-wrap','image-wrap','video-wrap','pdf-wrap','office-wrap','xlsx-wrap','pptx-wrap','text-wrap'];
+const EXTRAS = ['te-xmind','te-image','te-video','te-pdf','te-office','te-pptx','te-text'];
+
+function showPanels(panelId, extrasId) {
+  PANELS.forEach(id => {
+    const el = document.getElementById(id);
+    const isFlex = ['image-wrap','video-wrap','pptx-wrap','pdf-wrap','office-wrap','xlsx-wrap','text-wrap'].includes(id);
+    el.style.display = id === panelId ? (isFlex ? 'flex' : 'block') : 'none';
+  });
+  EXTRAS.forEach(id => document.getElementById(id).classList.toggle('active', id === extrasId));
+}
+
+function hideAll() {
+  PANELS.forEach(id => document.getElementById(id).style.display = 'none');
+  EXTRAS.forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('sheet-tabs').style.display = 'none';
+  allSheets = []; nodeEls = []; scale=1; panX=0; panY=0;
+  pdfDoc=null; pptxSlides=[];
+  const v = document.getElementById('preview-video'); v.pause(); v.src='';
+}
+function showViewer() {
+  dz.style.display = 'none';
+  document.getElementById('viewer').style.display = 'flex';
+  document.getElementById('reset-btn').style.display = 'flex';
+}
+function resetViewer() {
+  hideAll(); dz.style.display = 'flex';
+  document.getElementById('viewer').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+  fi.value = ''; clearErr();
+  if (curURL) { URL.revokeObjectURL(curURL); curURL=null; }
+}
+
+// ── XMind ─────────────────────────────────────────────────────────────────────
+async function loadXMind(file) {
+  const zip = await JSZip.loadAsync(file);
+  let sheets = null;
+  if (zip.files['content.json']) sheets = parseJSONSheets(JSON.parse(await zip.files['content.json'].async('text')));
+  else if (zip.files['content.xml']) sheets = parseXMLSheets(await zip.files['content.xml'].async('text'));
+  else {
+    for (const fn of Object.keys(zip.files)) {
+      if (fn.endsWith('content.json')) { sheets = parseJSONSheets(JSON.parse(await zip.files[fn].async('text'))); break; }
+    }
+    if (!sheets) for (const fn of Object.keys(zip.files)) {
+      if (fn.endsWith('.xml') && !fn.includes('META')) { sheets = parseXMLSheets(await zip.files[fn].async('text')); break; }
+    }
+  }
+  if (!sheets?.length) throw new Error('Could not parse XMind file.');
+  allSheets = sheets;
+  showPanels('canvas-wrap', 'te-xmind');
+  const tabs = document.getElementById('sheet-tabs');
+  tabs.style.display = 'flex';
+  tabs.innerHTML = sheets.map((s,i) => `<div class="sheet-tab ${i===0?'active':''}" onclick="switchSheet(${i})">${esc(s.title)}</div>`).join('');
+  switchSheet(0);
+  toast('XMind loaded — ' + sheets.length + ' sheet' + (sheets.length > 1 ? 's' : ''));
+}
+function parseJSONSheets(json) { return json.map(s => ({ title: s.title||'Sheet', root: cvtJ(s.rootTopic) })); }
+function cvtJ(t) { if (!t) return null; return { title: t.title||'', note: t.notes?.plain?.content||'', children: (t.children?.attached||[]).map(cvtJ) }; }
+function parseXMLSheets(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  return Array.from(doc.querySelectorAll('sheet')).map(s => ({ title: s.querySelector('title')?.textContent||'Sheet', root: parseXT(s.querySelector('topic')) }));
+}
+function parseXT(el) {
+  if (!el) return null;
+  const ce = el.querySelector(':scope > children > topics[type="attached"]');
+  return { title: el.querySelector(':scope > title')?.textContent||'', note: el.querySelector(':scope > notes > plain')?.textContent||'', children: ce ? Array.from(ce.querySelectorAll(':scope > topic')).map(parseXT) : [] };
+}
+function switchSheet(i) {
+  document.querySelectorAll('.sheet-tab').forEach((t,j) => t.classList.toggle('active', j===i));
+  renderMindMap(allSheets[i].root);
+}
+const NW=180, NH=44, HG=64, VG=16;
+function measure(t,d) {
+  const w=Math.min(240,Math.max(NW,(t.title||'').length*8+36));
+  const h=d===0?NH+12:NH;
+  if (!t.children?.length) return {w,h,tH:h};
+  const cH=t.children.reduce((s,c)=>s+measure(c,d+1).tH,0)+(t.children.length-1)*VG;
+  return {w,h,tH:Math.max(h,cH)};
+}
+function renderMindMap(root) {
+  if (!root) return;
+  const mc=document.getElementById('mind-canvas'), svg=document.getElementById('edge-layer');
+  nodeEls.forEach(e=>e.remove()); nodeEls=[]; svg.innerHTML='';
+  const P=80, m=measure(root,0);
+  place(root,0,P,P+m.tH/2-m.h/2,mc,svg,null);
+  svg.setAttribute('width',8000); svg.setAttribute('height',Math.max(4000,m.tH+P*2));
+  fitView();
+}
+function place(t,d,x,y,mc,svg,par) {
+  const cls=d===0?'node-root':d===1?'node-l1':d===2?'node-l2':'node-l3';
+  const el=document.createElement('div'); el.className='node '+cls;
+  el.textContent=t.title||'(untitled)'; el.style.left=x+'px'; el.style.top=y+'px';
+  el.addEventListener('click',e=>{e.stopPropagation();openInfo(t.title,t.note);});
+  mc.appendChild(el); nodeEls.push(el);
+  const aW=Math.min(240,Math.max(NW,(t.title||'').length*8+36)), aH=d===0?NH+12:NH;
+  const cy=y+aH/2;
+  if (par) drawEdge(svg,par.x,par.y,x,cy,d);
+  if (!t.children?.length) return;
+  const cx2=x+aW+HG, ms=t.children.map(c=>measure(c,d+1));
+  const tH=ms.reduce((s,m)=>s+m.tH,0)+(t.children.length-1)*VG;
+  let cY=y+aH/2-tH/2;
+  t.children.forEach((c,i)=>{const m=ms[i];place(c,d+1,cx2,cY+m.tH/2-m.h/2,mc,svg,{x:x+aW,y:cy});cY+=m.tH+VG;});
+}
+function drawEdge(svg,x1,y1,x2,y2,d) {
+  // Use warm tan edge colors matching Claude's palette
+  const cols=['#D97757','#D9D3C7','#E8E3D9','#EDE8DF'];
+  const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+  const cx=(x1+x2)/2;
+  p.setAttribute('d',`M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`);
+  p.setAttribute('fill','none'); p.setAttribute('stroke',cols[Math.min(d-1,3)]||'#D9D3C7');
+  p.setAttribute('stroke-width',d<=1?'2':'1.5'); p.setAttribute('stroke-opacity',d<=1?'0.7':'0.5');
+  svg.appendChild(p);
+}
+// Pan/zoom
+const cw=document.getElementById('canvas-wrap'), mC=document.getElementById('mind-canvas');
+cw.addEventListener('mousedown',e=>{if(e.target.closest('.node'))return;isPanning=true;stX=e.clientX;stY=e.clientY;stPX=panX;stPY=panY;cw.classList.add('panning');});
+window.addEventListener('mousemove',e=>{if(!isPanning)return;panX=stPX+(e.clientX-stX);panY=stPY+(e.clientY-stY);applyT();});
+window.addEventListener('mouseup',()=>{isPanning=false;cw.classList.remove('panning');});
+cw.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9;const r=cw.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;panX=mx-(mx-panX)*f;panY=my-(my-panY)*f;scale=Math.max(0.1,Math.min(4,scale*f));applyT();},{passive:false});
+let ltd=null;
+cw.addEventListener('touchstart',e=>{if(e.touches.length===1&&!e.target.closest('.node')){isPanning=true;stX=e.touches[0].clientX;stY=e.touches[0].clientY;stPX=panX;stPY=panY;}if(e.touches.length===2)ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);});
+cw.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===1&&isPanning){panX=stPX+(e.touches[0].clientX-stX);panY=stPY+(e.touches[0].clientY-stY);applyT();}if(e.touches.length===2&&ltd){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);scale=Math.max(0.1,Math.min(4,scale*(d/ltd)));ltd=d;applyT();}},{passive:false});
+cw.addEventListener('touchend',()=>{isPanning=false;ltd=null;});
+function applyT(){mC.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`;document.getElementById('xmind-zoom').textContent=Math.round(scale*100)+'%';}
+function zoomIn(){scale=Math.min(4,scale*1.2);applyT();}
+function zoomOut(){scale=Math.max(0.1,scale/1.2);applyT();}
+function fitView(){
+  if(!nodeEls.length)return;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  nodeEls.forEach(el=>{const l=parseInt(el.style.left),t=parseInt(el.style.top);x0=Math.min(x0,l);y0=Math.min(y0,t);x1=Math.max(x1,l+el.offsetWidth);y1=Math.max(y1,t+el.offsetHeight);});
+  const r=cw.getBoundingClientRect(),cW=x1-x0+80,cH=y1-y0+80;
+  scale=Math.min(4,Math.max(0.1,Math.min((r.width-40)/cW,(r.height-40)/cH)));
+  panX=(r.width-cW*scale)/2-x0*scale+40; panY=(r.height-cH*scale)/2-y0*scale+40; applyT();
+}
+function toggleLegend(){legendVis=!legendVis;document.getElementById('legend').style.display=legendVis?'':'none';}
+function openInfo(title,note){document.getElementById('info-title').textContent=title;document.getElementById('info-note').textContent=note||'No notes attached.';document.getElementById('info-panel').classList.add('open');}
+function closeInfo(){document.getElementById('info-panel').classList.remove('open');}
+cw.addEventListener('click',e=>{if(!e.target.closest('.node'))closeInfo();});
+function exportSVG(){
+  const svg=document.getElementById('edge-layer').cloneNode(true);
+  nodeEls.forEach(el=>{const fo=document.createElementNS('http://www.w3.org/2000/svg','foreignObject');fo.setAttribute('x',el.style.left);fo.setAttribute('y',el.style.top);fo.setAttribute('width',el.offsetWidth);fo.setAttribute('height',el.offsetHeight);const div=document.createElement('div');div.setAttribute('xmlns','http://www.w3.org/1999/xhtml');div.textContent=el.textContent;div.style.cssText=el.style.cssText;fo.appendChild(div);svg.appendChild(fo);});
+  dl(URL.createObjectURL(new Blob(['<?xml version="1.0"?>'+svg.outerHTML],{type:'image/svg+xml'})),'mindmap.svg');
+  toast('SVG exported');
+}
+
+// ── Image ─────────────────────────────────────────────────────────────────────
+function loadImage(file) {
+  const img=document.getElementById('preview-img'); img.src=curURL; imgSc=1; img.style.transform='scale(1)';
+  img.onload=()=>{document.getElementById('img-bar').textContent=img.naturalWidth+'×'+img.naturalHeight+'px · '+fmtSize(file.size);document.getElementById('img-zoom').textContent='100%';};
+  showPanels('image-wrap','te-image'); toast('Image loaded');
+}
+function imgZoom(d){imgSc=Math.max(0.05,Math.min(20,imgSc+d));document.getElementById('preview-img').style.transform='scale('+imgSc+')';document.getElementById('img-zoom').textContent=Math.round(imgSc*100)+'%';}
+function imgReset(){imgSc=1;document.getElementById('preview-img').style.transform='scale(1)';document.getElementById('img-zoom').textContent='100%';}
+document.getElementById('image-wrap').addEventListener('wheel',e=>{e.preventDefault();imgZoom(e.deltaY<0?0.1:-0.1);},{passive:false});
+
+// ── Video ─────────────────────────────────────────────────────────────────────
+function loadVideo(){document.getElementById('preview-video').src=curURL;showPanels('video-wrap','te-video');toast('Video loaded');}
+
+// ── PDF ───────────────────────────────────────────────────────────────────────
+async function loadPDF(file){
+  showPanels('pdf-wrap','te-pdf');
+  pdfDoc=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+  pdfPage=1; pdfSc=1.5;
+  await renderAllPDF();
+  toast('PDF — '+pdfDoc.numPages+' page'+(pdfDoc.numPages>1?'s':''));
+}
+async function renderAllPDF(){
+  const area=document.getElementById('pdf-canvas-area'); area.innerHTML='';
+  for(let i=1;i<=pdfDoc.numPages;i++){
+    const page=await pdfDoc.getPage(i);
+    const vp=page.getViewport({scale:pdfSc});
+    const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+    const lbl=document.createElement('div');lbl.className='pdf-lbl';lbl.textContent='Page '+i+' of '+pdfDoc.numPages;
+    area.appendChild(c);area.appendChild(lbl);
+    await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  }
+  document.getElementById('pdf-pages').textContent=pdfPage+' / '+pdfDoc.numPages;
+}
+async function renderOnePDF(){
+  const area=document.getElementById('pdf-canvas-area');area.innerHTML='';
+  const page=await pdfDoc.getPage(pdfPage);
+  const vp=page.getViewport({scale:pdfSc});
+  const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+  area.appendChild(c);
+  await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  document.getElementById('pdf-pages').textContent=pdfPage+' / '+pdfDoc.numPages;
+  document.getElementById('pdf-scale').textContent=Math.round(pdfSc/1.5*100)+'%';
+}
+function pdfPrev(){if(pdfDoc&&pdfPage>1){pdfPage--;renderOnePDF();}}
+function pdfNext(){if(pdfDoc&&pdfPage<pdfDoc.numPages){pdfPage++;renderOnePDF();}}
+function pdfZoom(d){pdfSc=Math.max(0.5,Math.min(5,pdfSc+d));document.getElementById('pdf-scale').textContent=Math.round(pdfSc/1.5*100)+'%';renderOnePDF();}
+
+// ── DOCX ──────────────────────────────────────────────────────────────────────
+async function loadDocx(file){
+  showPanels('office-wrap','te-office');
+  const result=await mammoth.convertToHtml({arrayBuffer:await file.arrayBuffer()});
+  const dr=document.getElementById('docx-render');
+  dr.style.display='block';
+  dr.innerHTML=result.value||'<p style="color:#999">No content found.</p>';
+  toast('Document loaded');
+}
+
+// ── XLSX ──────────────────────────────────────────────────────────────────────
+async function loadXlsx(file){
+  showPanels('xlsx-wrap','te-office');
+  let wb;
+  if(file.name.endsWith('.csv')){wb=XLSX.read(await file.text(),{type:'string'});}
+  else{wb=XLSX.read(await file.arrayBuffer(),{type:'array'});}
+  window._wb=wb;
+  document.getElementById('xlsx-nav').innerHTML=wb.SheetNames.map((n,i)=>`<div class="xlsx-tab ${i===0?'active':''}" onclick="xlsxTab(${i})">${esc(n)}</div>`).join('');
+  xlsxTab(0);
+  toast('Spreadsheet — '+wb.SheetNames.length+' sheet'+(wb.SheetNames.length>1?'s':''));
+}
+function xlsxTab(idx){
+  const wb=window._wb;
+  document.querySelectorAll('.xlsx-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  const ws=wb.Sheets[wb.SheetNames[idx]];
+  const area=document.getElementById('xlsx-table-area');
+  if(!ws||!ws['!ref']){area.innerHTML='<p style="padding:20px;color:#aaa">Empty sheet</p>';return;}
+  const rng=XLSX.utils.decode_range(ws['!ref']);
+  let h='<table><thead><tr><th></th>';
+  for(let c=rng.s.c;c<=rng.e.c;c++)h+=`<th>${XLSX.utils.encode_col(c)}</th>`;
+  h+='</tr></thead><tbody>';
+  for(let r=rng.s.r;r<=rng.e.r;r++){
+    h+=`<tr><td class="rh">${r+1}</td>`;
+    for(let c=rng.s.c;c<=rng.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];const v=cell?XLSX.utils.format_cell(cell):'';h+=`<td title="${esc(v)}">${esc(v)}</td>`;}
+    h+='</tr>';
+  }
+  area.innerHTML=h+'</tbody></table>';
+}
+
+// ── PPTX ──────────────────────────────────────────────────────────────────────
+async function loadPptx(file){
+  showPanels('pptx-wrap','te-pptx');
+  const zip=await JSZip.loadAsync(await file.arrayBuffer());
+  const sfs=Object.keys(zip.files).filter(f=>f.match(/^ppt\/slides\/slide\d+\.xml$/)).sort((a,b)=>parseInt(a.match(/\d+/)[0])-parseInt(b.match(/\d+/)[0]));
+  if(!sfs.length){showErr('No slides found.');return;}
+  pptxSlides=[];
+  for(const sf of sfs)pptxSlides.push(parsePptxSlide(await zip.files[sf].async('text')));
+  pptxSlide=0;
+  buildPptxSidebar();
+  renderPptxSlide(0);
+  toast('Presentation — '+pptxSlides.length+' slide'+(pptxSlides.length>1?'s':''));
+}
+function parsePptxSlide(xml){
+  const doc=new DOMParser().parseFromString(xml,'text/xml');
+  const texts=[];
+  doc.querySelectorAll('sp').forEach(sp=>{
+    const tx=sp.querySelector('txBody');if(!tx)return;
+    const ph=sp.querySelector('ph');
+    const isTitle=ph&&(ph.getAttribute('type')==='title'||ph.getAttribute('type')==='ctrTitle'||(!ph.getAttribute('type')&&texts.length===0));
+    tx.querySelectorAll('p').forEach(p=>{let line='';p.querySelectorAll('r').forEach(r=>{line+=r.querySelector('t')?.textContent||'';});if(line.trim())texts.push({text:line.trim(),isTitle:!!isTitle&&texts.length===0});});
+  });
+  const sc=doc.querySelector('bg solidFill srgbClr');
+  return {texts,bgColor:sc?'#'+sc.getAttribute('val'):null};
+}
+function buildPptxSidebar(){
+  document.getElementById('pptx-sidebar').innerHTML=pptxSlides.map((_,i)=>`<div class="pptx-thumb ${i===0?'active':''}" onclick="renderPptxSlide(${i})" id="pt-${i}"><canvas id="ptc-${i}" width="280" height="157"></canvas><span class="pptx-num">${i+1}</span></div>`).join('');
+  pptxSlides.forEach((_,i)=>drawSlide(i,`ptc-${i}`,280,157));
+}
+function renderPptxSlide(idx){
+  pptxSlide=idx;
+  document.querySelectorAll('.pptx-thumb').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  const wrap=document.getElementById('pptx-main');
+  const W=Math.min(960,wrap.clientWidth-60),H=Math.round(W*9/16);
+  const c=document.getElementById('pptx-canvas');c.width=W;c.height=H;
+  drawSlide(idx,'pptx-canvas',W,H);
+  document.getElementById('pptx-pages').textContent=(idx+1)+' / '+pptxSlides.length;
+}
+function drawSlide(idx,cid,W,H){
+  const c=document.getElementById(cid);if(!c)return;
+  const ctx=c.getContext('2d');const s=pptxSlides[idx];
+  ctx.fillStyle=s.bgColor||'#FDFAF5';ctx.fillRect(0,0,W,H);
+  const texts=s.texts;
+  if(!texts.length){ctx.fillStyle='#bbb';ctx.font=`${H*.05}px Georgia`;ctx.textAlign='center';ctx.fillText('(empty slide)',W/2,H/2);return;}
+  const title=texts.find(t=>t.isTitle),body=texts.filter(t=>!t.isTitle);
+  const tc=s.bgColor?contrast(s.bgColor):'#1A1714';
+  let y=H*.16;
+  if(title){const fs=Math.min(H*.1,W*.06);ctx.font=`bold ${fs}px Georgia,serif`;ctx.fillStyle=tc;ctx.textAlign='center';wrapText(ctx,title.text,W/2,y,W*.85,fs*1.3);y+=fs*2.4;}
+  const bfs=Math.min(H*.05,W*.032);
+  ctx.font=`${bfs}px -apple-system,sans-serif`;ctx.fillStyle=tc==='#EEEEEE'?'rgba(255,255,255,.8)':'#4A4540';ctx.textAlign='left';
+  body.slice(0,12).forEach(item=>{if(y>H*.9)return;wrapText(ctx,'• '+item.text,W*.07,y,W*.86,bfs*1.5);y+=bfs*2.1;});
+  ctx.font=`${Math.max(8,H*.022)}px -apple-system,monospace`;ctx.fillStyle='rgba(0,0,0,.18)';ctx.textAlign='right';
+  ctx.fillText(idx+1,W-W*.03,H-H*.03);
+}
+function wrapText(ctx,text,x,y,maxW,lh){const words=text.split(' ');let line='',cy=y;for(let i=0;i<words.length;i++){const tl=line+words[i]+' ';if(ctx.measureText(tl).width>maxW&&i>0){ctx.fillText(line,x,cy);line=words[i]+' ';cy+=lh;}else line=tl;}ctx.fillText(line,x,cy);}
+function contrast(hex){hex=hex.replace('#','');const r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);return(0.299*r+0.587*g+0.114*b)>128?'#1A1714':'#EEEEEE';}
+function pptxNav(d){const n=pptxSlide+d;if(n>=0&&n<pptxSlides.length)renderPptxSlide(n);}
+
+// ── Text ──────────────────────────────────────────────────────────────────────
+async function loadText(file){showPanels('text-wrap','te-text');document.getElementById('text-content').textContent=await file.text();toast('Text loaded — '+fmtSize(file.size));}
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+function downloadCurrent(){if(curURL){dl(curURL,curName);toast('Download started');}}
+function dl(url,name){const a=document.createElement('a');a.href=url;a.download=name;a.click();}
+function fmtSize(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';return(b/1048576).toFixed(1)+'MB';}
+function showErr(m){const e=document.getElementById('error-msg');e.style.display='block';e.textContent='⚠ '+m;}
+function clearErr(){document.getElementById('error-msg').style.display='none';}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let _tt;
+function toast(m){const s=document.getElementById('toast');s.textContent=m;s.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>s.classList.remove('show'),2500);}
+
+// Keyboard shortcuts
+window.addEventListener('keydown',e=>{
+  const t=getType(curName);
+  if(t==='xmind'){if(e.key==='+'||e.key==='=')zoomIn();if(e.key==='-')zoomOut();if(e.key==='0'||e.key==='f')fitView();if(e.key==='Escape')closeInfo();}
+  if(t==='pdf'){if(e.key==='ArrowRight'||e.key==='ArrowDown')pdfNext();if(e.key==='ArrowLeft'||e.key==='ArrowUp')pdfPrev();}
+  if(t==='pptx'){if(e.key==='ArrowRight'||e.key==='ArrowDown')pptxNav(1);if(e.key==='ArrowLeft'||e.key==='ArrowUp')pptxNav(-1);}
+  if(t==='image'){if(e.key==='+'||e.key==='=')imgZoom(0.1);if(e.key==='-')imgZoom(-0.1);if(e.key==='0')imgReset();}
+});
+</script>
+</body>
+</html>
